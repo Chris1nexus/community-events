@@ -22,20 +22,20 @@ Quickstart notebook is available at the top level of our repo, and is named sim2
 
 # Roadmap
 #### DATASET:  
-1. [x] dataset creation  
+1. * [x] dataset creation  
 	  
 #### MODEL:   
 2. test different GAN architectures for the sim2real translation:     
-    [x] CycleGAN   
-    [ ] Cycada    
-    [ ] ...       
+    * [x] CycleGAN   
+    * [ ] Cycada    
+    * [ ] ...       
 2. architecture modifications(list the chosen ones and update when finished):  
-    [ ] FID loss CycleGAN  
-    [ ] ...     
+    * [ ] FID loss CycleGAN  
+    * [ ] ...     
 3. hyperparameter optimization for each model  
-    [ ] CycleGAN  
-    [ ] Cycada  
-    [ ] ...   
+    * [ ] CycleGAN  
+    * [ ] Cycada  
+    * [ ] ...   
    
 ###### Huggingface Dataset: 
 Chris1/sim2real_gta5_to_cityscapes 
@@ -49,7 +49,7 @@ from datasets import load_dataset
 dataset = load_dataset("Chris1/sim2real_gta5_to_cityscapes")  
 ```        
 #### VALIDATION
-5. [ ]   group results of the tested GANs in a benchmark table, with respect to a common metric, examples are the 
+5. * [ ]   group results of the tested GANs in a benchmark table, with respect to a common metric, examples are the 
 [huggingface metrics](https://github.com/huggingface/community-events/tree/main/huggan/pytorch/metrics )
 
 ### HUGGAN SPRINT EVALUATION:
