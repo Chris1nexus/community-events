@@ -21,21 +21,21 @@ Quickstart notebook is available at the top level of our repo, and is named sim2
 * ##### (optional, if there is still time after all other tasks) evaluate quality of sim2real on semantic segmentation
 
 # Roadmap
-#### DATASET:
-1. [x] dataset creation
-	
-#### MODEL:
-2. test different GAN architectures for the sim2real translation:
-     [x] CycleGAN
-     [ ] Cycada
+#### DATASET:  
+1. [x] dataset creation  
+	  
+#### MODEL:   
+2. test different GAN architectures for the sim2real translation:     
+     [x] CycleGAN   
+     [ ] Cycada    
+     [ ] ...       
+2. architecture modifications(list the chosen ones and update when finished):  
+     [ ] FID loss CycleGAN  
+     [ ] ...     
+3. hyperparameter optimization for each model  
+     [ ] CycleGAN  
+     [ ] Cycada  
      [ ] ...   
-2. architecture modifications(list the chosen ones and update when finished):
-     [ ] FID loss CycleGAN
-     [ ] ...   
-3. hyperparameter optimization for each model
-     [ ] CycleGAN
-     [ ] Cycada
-     [ ] ...  
    
 ###### Huggingface Dataset: 
 Chris1/sim2real_gta5_to_cityscapes 
@@ -53,10 +53,10 @@ dataset = load_dataset("Chris1/sim2real_gta5_to_cityscapes")
 [huggingface metrics](https://github.com/huggingface/community-events/tree/main/huggan/pytorch/metrics )
 
 ### HUGGAN SPRINT EVALUATION:
-6. * [ ] upload models with huggingface specification    [link](https://github.com/huggingface/community-events/tree/main/huggan#24-model-cards)
-7. * [ ] showcase results in SPACE demo Huggingface   [link](https://github.com/huggingface/community-events/tree/main/huggan#3-create-a-demo)
-7.1. * [ ]  create model card   
-7.2. * [ ] create SPACE card and demo   
+6. * [ ] upload models with huggingface specification    [link](https://github.com/huggingface/community-events/tree/main/huggan#24-model-cards)  
+7. * [ ] showcase results in SPACE demo Huggingface   [link](https://github.com/huggingface/community-events/tree/main/huggan#3-create-a-demo)   
+7.1. * [ ]  create model card     
+7.2. * [ ] create SPACE card and demo     
 
 
 
