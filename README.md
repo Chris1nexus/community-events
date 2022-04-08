@@ -18,10 +18,10 @@
              	simply do the following
              	
              	
-             	``` { .python }
+             	```{python}
                 from datasets import load_dataset
                 dataset = load_dataset("Chris1/sim2real_gta5_to_cityscapes")  
-                ```
+                ```  
 ## VALIDATION
 	3. group results of the tested GANs in a benchmark table, with respect to a common metric (examples are https://github.com/huggingface/community-events/tree/main/huggan/pytorch/metrics)
 
