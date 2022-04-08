@@ -4,8 +4,8 @@
 	
 ## MODEL:
 	2. test different GAN architectures for the sim2real translation:
-	    (DONE) CycleGAN
-	    Cycada
+	    [x] CycleGAN
+	    [ ] Cycada
 	    ...
 	    2.1 hyperparameter optimization for each model
 	        CycleGAN
@@ -18,9 +18,9 @@
              	simply do the following
              	
              	
-             	``` { .py }
-				from datasets import load_dataset
-		        dataset = load_dataset("Chris1/sim2real_gta5_to_cityscapes")
+             	``` { .python }
+                from datasets import load_dataset
+                dataset = load_dataset("Chris1/sim2real_gta5_to_cityscapes")  
                 ```
 ## VALIDATION
 	3. group results of the tested GANs in a benchmark table, with respect to a common metric (examples are https://github.com/huggingface/community-events/tree/main/huggan/pytorch/metrics)
