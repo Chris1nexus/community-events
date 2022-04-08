@@ -1,5 +1,6 @@
 # Tasks
 Our repository is at [link](https://github.com/Chris1nexus/community-events/blob/main/huggan/pytorch/cyclegan/train.py) 
+Quickstart notebook is available at the top level of our repo, and is named sim2real_quickstart.ipynb   
 * ##### R&D
    * FID loss
    * cycada implementation
