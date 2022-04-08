@@ -16,9 +16,7 @@
              	
              	to read it within a python script or notebook,
              	simply do the following
-             	
-             	
-             	```{python}
+                ```python
                 from datasets import load_dataset
                 dataset = load_dataset("Chris1/sim2real_gta5_to_cityscapes")  
                 ```  
