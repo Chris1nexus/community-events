@@ -158,7 +158,8 @@ def training_function(config, args):
         if args.wandb:
             import wandb
 
-            wandb.init(project=str(args.output_dir).split("/")[-1], entity="chris1nexus")   
+            wandb.init(project='--'.join(str(args.output_dir).split("/")),#[-1], 
+                       entity="chris1nexus")   
                 
 
             wandb.config = vars(args)
