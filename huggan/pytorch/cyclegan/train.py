@@ -71,13 +71,16 @@ def parse_args(args=None):
         type=str,
         help="Name of the model on the hub.",
     )
+    parser.add_argument("--wandb", action="store_true", help="If passed, will log to Weights and Biases.")
+
     parser.add_argument(
         "--organization_name",
         required=False,
-        default="huggan",
+        default="Chris1",
         type=str,
         help="Organization name to push to, in case args.push_to_hub is specified.",
     )
+    parser.add_argument("--output_dir", type=Path, default=Path("./output"), help="Name of the directory to dump generated images during training.")
     return parser.parse_args(args=args)
 
 
@@ -95,9 +98,18 @@ def weights_init_normal(m):
 def training_function(config, args):
     accelerator = Accelerator(fp16=args.fp16, cpu=args.cpu, mixed_precision=args.mixed_precision)
     
+    
+    if args.output_dir is not None:
+        os.makedirs(args.output_dir, exist_ok=True)
+    if args.wandb:
+        import wandb
+        wandb.init(project=str(args.output_dir).split("/")[-1], entity="chris1nexus")   
+        wandb.config = vars(args)
+                
+    
     # Create sample and checkpoint directories
-    os.makedirs("images/%s" % args.dataset_name, exist_ok=True)
-    os.makedirs("saved_models/%s" % args.dataset_name, exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir,"images/%s" % args.dataset_name), exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir,"saved_models/%s" % args.dataset_name), exist_ok=True)
 
     # Losses
     criterion_GAN = torch.nn.MSELoss()
@@ -116,10 +128,14 @@ def training_function(config, args):
 
     if args.epoch != 0:
         # Load pretrained models
-        G_AB.load_state_dict(torch.load("saved_models/%s/G_AB_%d.pth" % (args.dataset_name, args.epoch)))
-        G_BA.load_state_dict(torch.load("saved_models/%s/G_BA_%d.pth" % (args.dataset_name, args.epoch)))
-        D_A.load_state_dict(torch.load("saved_models/%s/D_A_%d.pth" % (args.dataset_name, args.epoch)))
-        D_B.load_state_dict(torch.load("saved_models/%s/D_B_%d.pth" % (args.dataset_name, args.epoch)))
+        G_AB.load_state_dict(torch.load(
+            os.path.join(args.output_dir,"saved_models/%s/G_AB_%d.pth" % (args.dataset_name, args.epoch))))
+        G_BA.load_state_dict(torch.load(
+            os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (args.dataset_name, args.epoch))))
+        D_A.load_state_dict(torch.load(
+            os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, args.epoch))))
+        D_B.load_state_dict(torch.load(
+            os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, args.epoch))))
     else:
         # Initialize weights
         G_AB.apply(weights_init_normal)
@@ -177,7 +193,7 @@ def training_function(config, args):
     dataloader = DataLoader(train_ds, shuffle=True, batch_size=args.batch_size, num_workers=args.num_workers)
     val_dataloader = DataLoader(val_ds, batch_size=5, shuffle=True, num_workers=1)
 
-    def sample_images(batches_done):
+    def sample_images(args, batches_done):
         """Saves a generated sample from the test set"""
         batch = next(iter(val_dataloader))
         G_AB.eval()
@@ -193,7 +209,7 @@ def training_function(config, args):
         fake_B = make_grid(fake_B, nrow=5, normalize=True)
         # Arange images along y-axis
         image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1)
-        save_image(image_grid, "images/%s/%s.png" % (args.dataset_name, batches_done), normalize=False)
+        save_image(image_grid, os.path.join(args.output_dir,  "images/%s/%s.png" % (args.dataset_name, batches_done)), normalize=False)
 
     G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, dataloader, val_dataloader = accelerator.prepare(G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, dataloader, val_dataloader)
     
@@ -312,10 +328,29 @@ def training_function(config, args):
                     time_left,
                 )
             )
-
+            
+            train_logs = {
+                        "epoch": epoch,
+                        "loss_discriminator": loss_D.item(),
+                        "loss_generator": loss_G.item(),
+                        "loss_cycle": loss_cycle.item(),
+                        "loss_identity": loss_identity.item(),
+                
+                        "loss_identity_A": loss_id_A.item(),
+                        "loss_identity_B": loss_id_B.item(),
+                
+                        "loss_cycle_A": loss_cycle_A.item(),
+                        "loss_cycle_B": loss_cycle_B.item(),
+                
+                        "loss_D_A": loss_D_A.item(),
+                        "loss_D_B": loss_D_B.item(),
+                
+                    }
+            if args.wandb:
+                wandb.log(train_logs)
             # If at sample interval save image
             if batches_done % args.sample_interval == 0:
-                sample_images(batches_done)
+                sample_images(args, batches_done)
 
         # Update learning rates
         lr_scheduler_G.step()
@@ -324,10 +359,10 @@ def training_function(config, args):
 
         if args.checkpoint_interval != -1 and epoch % args.checkpoint_interval == 0:
             # Save model checkpoints
-            torch.save(G_AB.state_dict(), "saved_models/%s/G_AB_%d.pth" % (args.dataset_name, epoch))
-            torch.save(G_BA.state_dict(), "saved_models/%s/G_BA_%d.pth" % (args.dataset_name, epoch))
-            torch.save(D_A.state_dict(), "saved_models/%s/D_A_%d.pth" % (args.dataset_name, epoch))
-            torch.save(D_B.state_dict(), "saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch))
+            torch.save(G_AB.state_dict(), os.path.join(args.output_dir, "saved_models/%s/G_AB_%d.pth" % (args.dataset_name, epoch)) )
+            torch.save(G_BA.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (args.dataset_name, epoch)))
+            torch.save(D_A.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, epoch)))
+            torch.save(D_B.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch)))
 
     # Optionally push to hub
     if args.push_to_hub:
@@ -345,7 +380,7 @@ def main():
     print(args)
 
     # Make directory for saving generated images
-    os.makedirs("images", exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir,"images"), exist_ok=True)
 
     training_function({}, args)
 

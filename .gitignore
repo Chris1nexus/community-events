@@ -1,5 +1,9 @@
 # Initially taken from Github's Python gitignore file
 
+huggan/pytorch/cyclegan/wandb/*
+huggan/pytorch/dcgan/wandb/*
+huggan/pytorch/cyclegan/experiments/*
+huggan/pytorch/dcgan/experiments/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
