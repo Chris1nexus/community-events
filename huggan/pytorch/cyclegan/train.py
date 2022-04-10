@@ -101,7 +101,7 @@ def training_function(config, args):
     
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
-    if args.wandb:
+    if args.wandb: #and accelerator.is_local_main_process:
         import wandb
         wandb.init(project='--'.join(str(args.output_dir).split("/")),#[-1], 
                        entity="chris1nexus")    
@@ -210,7 +210,9 @@ def training_function(config, args):
         fake_B = make_grid(fake_B, nrow=5, normalize=True)
         # Arange images along y-axis
         image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1)
-        save_image(image_grid, os.path.join(args.output_dir,  "images/%s/%s.png" % (args.dataset_name, batches_done)), normalize=False)
+        save_path = os.path.join(args.output_dir,  "images/%s/%s.png" % (args.dataset_name, batches_done) )
+        save_image(image_grid, save_path, normalize=False)
+        return save_path
 
     G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, dataloader, val_dataloader = accelerator.prepare(G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, dataloader, val_dataloader)
     
@@ -347,11 +349,19 @@ def training_function(config, args):
                         "loss_D_B": loss_D_B.item(),
                 
                     }
-            if args.wandb:
+            if args.wandb: #and accelerator.is_local_main_process:
                 wandb.log(train_logs)
+                
             # If at sample interval save image
-            if batches_done % args.sample_interval == 0:
-                sample_images(args, batches_done)
+            if batches_done % args.sample_interval == 0: #and accelerator.is_local_main_process:
+                save_path = sample_images(args, batches_done)
+                if args.wandb:
+                    try:
+                        images = wandb.Image(str(save_path) )
+                        wandb.log({'generated_examples': images }  )
+                    except:
+                        pass
+                    
 
         # Update learning rates
         lr_scheduler_G.step()
