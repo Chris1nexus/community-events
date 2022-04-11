@@ -6,6 +6,9 @@ huggan/pytorch/cyclegan/experiments/*
 huggan/pytorch/dcgan/experiments/*
 huggan/pytorch/cyclegan/experiments_cyclegan_punk_to_apes/*
 huggan/pytorch/dcgan/experiments_cyclegan_punk_to_apes/*
+huggan/pytorch/experiments/*
+huggan/pytorch/cyclegan/experiments.csv
+huggan/pytorch/dcgan/experiments.csv
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -375,6 +375,22 @@ def training_function(config, args):
             torch.save(D_A.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, epoch)))
             torch.save(D_B.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch)))
 
+            '''
+            accelerator.wait_for_everyone()
+            G_AB_unwrap = accelerator.unwrap_model(G_AB)
+            G_AB_unwrap = accelerator.unwrap_model(G_AB)
+            G_AB_unwrap = accelerator.unwrap_model(G_AB)
+            G_AB_unwrap = accelerator.unwrap_model(G_AB)
+            
+            accelerator.save(unwrapped_model.state_dict(), filename)
+            # Save model checkpoints
+            torch.save(G_AB_unwrap.state_dict(), os.path.join(args.output_dir, "saved_models/%s/G_AB_%d.pth" % (args.dataset_name, epoch)) )
+            torch.save(G_BA_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (args.dataset_name, epoch)))
+            torch.save(D_A_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, epoch)))
+            torch.save(D_B_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch)))
+            
+            '''
+            
     # Optionally push to hub
     if args.push_to_hub:
         save_directory = args.pytorch_dump_folder_path

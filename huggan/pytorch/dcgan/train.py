@@ -24,7 +24,8 @@ import logging
 import os
 import sys
 from pathlib import Path
-
+import datetime
+import time
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -235,6 +236,7 @@ def training_function(config, args):
 
     logger.info("***** Running training *****")
     logger.info(f"  Num Epochs = {args.num_epochs}")
+    prev_time = time.time()
     # For each epoch
     for epoch in range(args.num_epochs):
         # For each batch in the dataloader
@@ -312,7 +314,25 @@ def training_function(config, args):
                         log_str += "| {}: {:.3e}".format(k, v)
 
                     if accelerator.is_local_main_process:
-                        logger.info(log_str)
+                        #logger.info(log_str)
+                        
+                        batches_done = epoch * len(dataloader) + step
+                        batches_left = args.num_epochs * len(dataloader) - batches_done
+                        time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
+                        prev_time = time.time()
+                        # Print log
+                        sys.stdout.write(
+                            "\r[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f] ETA: %s"
+                            % (
+                                epoch,
+                                args.num_epochs,
+                                step,
+                                len(dataloader),
+                                errD,
+                                errG,
+                                time_left,
+                            )
+                        )
                         if args.wandb:
                             wandb.log(train_logs)
 
@@ -327,7 +347,7 @@ def training_function(config, args):
 
         # Calculate FID metric
         fid = calculate_fretchet(real_cpu, fake, model.to(accelerator.device))
-        logger.info(f"FID: {fid}")
+        #logger.info(f"FID: {fid}")
         if accelerator.is_local_main_process and args.wandb:
             wandb.log({"FID": fid})
 
