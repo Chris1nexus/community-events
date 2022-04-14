@@ -353,7 +353,12 @@ def training_function(config, args):
 
     # Optionally push to hub
     if accelerator.is_main_process and args.push_to_hub:
-        generator.module.push_to_hub(
+        if accelerator.state.num_processes > 1:
+            generator_module = generator.module
+        else:
+            generator_module = generator        
+        
+        generator_module.push_to_hub(
             repo_path_or_name=args.output_dir / args.model_name,
             organization=args.organization_name,
         )

@@ -29,11 +29,7 @@ def parse_args(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
     parser.add_argument("--num_epochs", type=int, default=200, help="number of epochs of training")
-    parser.add_argument("--source_dataset_name", type=str, default="Chris1/cryptopunks_HQ", help="name of the source dataset")
-    parser.add_argument("--target_dataset_name", type=str, default="Chris1/bored_apes_yacht_club_HQ", help="name of the target dataset")
-    
-    
-    
+    parser.add_argument("--dataset_name", type=str, default="huggan/facades", help="name of the dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
     parser.add_argument("--beta1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
@@ -110,11 +106,11 @@ def training_function(config, args):
         wandb.init(project='--'.join(str(args.output_dir).split("/")),#[-1], 
                        entity="chris1nexus")    
         wandb.config = vars(args)
-    STORAGE_DIR = f"{args.source_dataset_name}__2__{args.target_dataset_name}"            
+                
     
     # Create sample and checkpoint directories
-    os.makedirs(os.path.join(args.output_dir,"images/%s" % STORAGE_DIR), exist_ok=True)
-    os.makedirs(os.path.join(args.output_dir,"saved_models/%s" % STORAGE_DIR), exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir,"images/%s" % args.dataset_name), exist_ok=True)
+    os.makedirs(os.path.join(args.output_dir,"saved_models/%s" % args.dataset_name), exist_ok=True)
 
     # Losses
     criterion_GAN = torch.nn.MSELoss()
@@ -134,13 +130,13 @@ def training_function(config, args):
     if args.epoch != 0:
         # Load pretrained models
         G_AB.load_state_dict(torch.load(
-            os.path.join(args.output_dir,"saved_models/%s/G_AB_%d.pth" % (STORAGE_DIR, args.epoch) )  ))
+            os.path.join(args.output_dir,"saved_models/%s/G_AB_%d.pth" % (args.dataset_name, args.epoch))))
         G_BA.load_state_dict(torch.load(
-            os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (STORAGE_DIR, args.epoch))))
+            os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (args.dataset_name, args.epoch))))
         D_A.load_state_dict(torch.load(
-            os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (STORAGE_DIR, args.epoch))))
+            os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, args.epoch))))
         D_B.load_state_dict(torch.load(
-            os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (STORAGE_DIR, args.epoch))))
+            os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, args.epoch))))
     else:
         # Initialize weights
         G_AB.apply(weights_init_normal)
@@ -180,79 +176,66 @@ def training_function(config, args):
     ])
 
     def transforms(examples):
-        examples["image"] = [transform(image.convert("RGB")) for image in examples["image"]]
+        examples["A"] = [transform(image.convert("RGB")) for image in examples["imageA"]]
+        examples["B"] = [transform(image.convert("RGB")) for image in examples["imageB"]]
+
+        del examples["imageA"]
+        del examples["imageB"]
+
         return examples
+    print('Loading dataset')
+    dataset = load_dataset(args.dataset_name)
+    print('Loading completed')
+    print('Transforming dataset.')
+    transformed_dataset = dataset.with_transform(transforms)
+    print('Dataset transformation completed.')
+    splits = transformed_dataset['train'].train_test_split(test_size=0.1)
+    train_ds = splits['train']
+    val_ds = splits['test']
 
-    def load_and_transform(dataset_name, batch_size, num_workers):
-        dataset = load_dataset(dataset_name)
-        transformed_dataset = dataset.with_transform(transforms)
-        transformed_dataset = transformed_dataset['train']
-        splits = transformed_dataset\
-        .remove_columns( [col for col in transformed_dataset.column_names if col != 'image'] )\
-        .train_test_split(test_size=0.1)
-        train_ds = splits['train']
-        val_ds = splits['test']
-
-        dataloader = DataLoader(train_ds, shuffle=True, batch_size=batch_size, num_workers=num_workers)
-        val_dataloader = DataLoader(val_ds, batch_size=5, shuffle=True, num_workers=1)    
-        return dataloader, val_dataloader
-
-
-    from collections import OrderedDict
-    dataset_names = {'source':args.source_dataset_name, 
-                     'target':args.target_dataset_name}
-
-    loaders = {'train':{},
-              'val':{}}
-    for domain_id, dataset_name in dataset_names.items():
-        train_loader, val_loader = load_and_transform(dataset_name, args.batch_size, args.num_workers)
-        loaders['train'][domain_id] = train_loader
-        loaders['val'][domain_id] = val_loader
-
-
+    dataloader = DataLoader(train_ds, shuffle=True, batch_size=args.batch_size, num_workers=args.num_workers)
+    val_dataloader = DataLoader(val_ds, batch_size=5, shuffle=True, num_workers=1)
 
     def sample_images(args, batches_done):
         """Saves a generated sample from the test set"""
-        real_A = next(iter(loaders["val"]["source"]))['image']
-        real_B = next(iter(loaders["val"]["target"]))['image']
+        batch = next(iter(val_dataloader))
         G_AB.eval()
         G_BA.eval()
-        fake_B = G_AB(real_A)
-        fake_A = G_BA(real_B)
+        real_A = batch["A"]
+        fake_B = G_AB(real_A)#.detach().cpu()
+        real_B = batch["B"]
+        fake_A = G_BA(real_B)#.detach().cpu()
         # Arange images along x-axis
-        real_A = make_grid(real_A, nrow=5, normalize=True)
-        real_B = make_grid(real_B, nrow=5, normalize=True)
+        real_A = make_grid(real_A,#.detach().cpu(),
+                           nrow=5, normalize=True)
+        real_B = make_grid(real_B,#.detach().cpu(), 
+                           nrow=5, normalize=True)
         fake_A = make_grid(fake_A, nrow=5, normalize=True)
         fake_B = make_grid(fake_B, nrow=5, normalize=True)
         # Arange images along y-axis
         image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1)
-        save_path = os.path.join(args.output_dir,  "images/%s/%s.png" % (STORAGE_DIR, batches_done) )
+        save_path = os.path.join(args.output_dir,  "images/%s/%s.png" % (args.dataset_name, batches_done) )
         save_image(image_grid, save_path, normalize=False)
         return save_path
 
-
-
-    G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, loaders['train']['source'], loaders['train']['target'], loaders['val']['source'], loaders['val']['target']  = accelerator.prepare(G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, loaders['train']['source'], loaders['train']['target'], loaders['val']['source'], loaders['val']['target'] )
+    G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, dataloader, val_dataloader = accelerator.prepare(G_AB, G_BA, D_A, D_B, optimizer_G, optimizer_D_A, optimizer_D_B, dataloader, val_dataloader)
     print('Starting training')
     # ----------
     #  Training
     # ----------
-    SOURCE_LOADER_BATCHES = len(loaders['train']['source'])
-    TARGET_LOADER_BATCHES = len(loaders['train']['target'])
-    LOADER_BATCHES = min(SOURCE_LOADER_BATCHES, TARGET_LOADER_BATCHES)
+
     prev_time = time.time()
     for epoch in range(args.epoch, args.num_epochs):
-        for i, (source_batch, target_batch) in enumerate(zip(loaders['train']['source'], loaders['train']['target']) ):
+        for i, batch in enumerate(dataloader):
 
             # Set model input
-            #print(source_batch)
-            #print(target_batch)
-            real_A = source_batch['image'] #batch["A"]
-            real_B = target_batch['image'] #batch["B"]
-            
+            real_A = batch["A"]
+            real_B = batch["B"]
+            #print('a')
             # Adversarial ground truths
             valid = torch.ones((real_A.size(0), *output_shape), device=accelerator.device)
             fake = torch.zeros((real_A.size(0), *output_shape), device=accelerator.device)
+            #print('b')
             # ------------------
             #  Train Generators
             # ------------------
@@ -265,9 +248,9 @@ def training_function(config, args):
             # Identity loss
             loss_id_A = criterion_identity(G_BA(real_A), real_A)
             loss_id_B = criterion_identity(G_AB(real_B), real_B)
-
+            #print('b1')
             loss_identity = (loss_id_A + loss_id_B) / 2
-
+            #print('b2')
             # GAN loss
             fake_B = G_AB(real_A)
             loss_GAN_AB = criterion_GAN(D_B(fake_B), valid)
@@ -275,7 +258,7 @@ def training_function(config, args):
             loss_GAN_BA = criterion_GAN(D_A(fake_A), valid)
 
             loss_GAN = (loss_GAN_AB + loss_GAN_BA) / 2
-
+            #print('b3')
             # Cycle loss
             recov_A = G_BA(fake_B)
             loss_cycle_A = criterion_cycle(recov_A, real_A)
@@ -283,13 +266,13 @@ def training_function(config, args):
             loss_cycle_B = criterion_cycle(recov_B, real_B)
 
             loss_cycle = (loss_cycle_A + loss_cycle_B) / 2
-
+            #print('b4')
             # Total loss
             loss_G = loss_GAN + args.lambda_cyc * loss_cycle + args.lambda_id * loss_identity
     
             accelerator.backward(loss_G)
             optimizer_G.step()
-
+            #print('b5')
             # -----------------------
             #  Train Discriminator A
             # -----------------------
@@ -330,10 +313,10 @@ def training_function(config, args):
             #  Log Progress
             # --------------
 
-
+            #print('c')
             #'''
             if accelerator.state.num_processes > 1:
-
+                    #print('cA')
                     errD = accelerator.gather(loss_D).sum() / accelerator.state.num_processes
                     errG = accelerator.gather(loss_G).sum() / accelerator.state.num_processes
                     errGAN = accelerator.gather(loss_GAN).sum() / accelerator.state.num_processes
@@ -350,7 +333,8 @@ def training_function(config, args):
                     err_G_A = accelerator.gather(loss_GAN_AB).sum() / accelerator.state.num_processes
                     err_G_B = accelerator.gather(loss_GAN_BA).sum() / accelerator.state.num_processes                    
             else:
-
+            #'''
+                    #print('cB')
                     errD = loss_D.item()
                     errG = loss_G.item()
                     errGAN = loss_GAN.item()
@@ -368,8 +352,8 @@ def training_function(config, args):
                     err_G_B = loss_GAN_BA.item() 
                     
             # Determine approximate time left
-            batches_done = i + epoch * LOADER_BATCHES #len(dataloader)
-            batches_left = args.num_epochs * LOADER_BATCHES - batches_done #len(dataloader) - batches_done
+            batches_done = epoch * len(dataloader) + i
+            batches_left = args.num_epochs * len(dataloader) - batches_done
             time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
             prev_time = time.time()                    
             if accelerator.is_local_main_process:
@@ -380,12 +364,17 @@ def training_function(config, args):
                             epoch,
                             args.num_epochs,
                             i,
-                            LOADER_BATCHES, #len(dataloader),
+                            len(dataloader),
                             errD,
                             errG,
                             errGAN,
                             errCycle,
                             errIdentity,
+                            #loss_D.item(),
+                            #loss_G.item(),
+                            #loss_GAN.item(),
+                            #loss_cycle.item(),
+                            #loss_identity.item(),
                             time_left,
                         )
                     )
@@ -411,8 +400,10 @@ def training_function(config, args):
 
                             }
 
+                    #print('d')
                     if args.wandb :
                            wandb.log(train_logs)
+                    #print('e')
                     # If at sample interval save image
             if batches_done % args.sample_interval == 0:
                     save_path = sample_images(args, batches_done)
@@ -431,10 +422,10 @@ def training_function(config, args):
 
         if args.checkpoint_interval != -1 and epoch % args.checkpoint_interval == 0:
             # Save model checkpoints
-            torch.save(G_AB.state_dict(), os.path.join(args.output_dir, "saved_models/%s/G_AB_%d.pth" % (STORAGE_DIR, epoch)))
-            torch.save(G_BA.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (STORAGE_DIR, epoch)))
-            torch.save(D_A.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (STORAGE_DIR, epoch)))
-            torch.save(D_B.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (STORAGE_DIR, epoch)))
+            torch.save(G_AB.state_dict(), os.path.join(args.output_dir, "saved_models/%s/G_AB_%d.pth" % (args.dataset_name, epoch)) )
+            torch.save(G_BA.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (args.dataset_name, epoch)))
+            torch.save(D_A.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, epoch)))
+            torch.save(D_B.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch)))
 
             '''
             accelerator.wait_for_everyone()
