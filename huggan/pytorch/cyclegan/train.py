@@ -63,12 +63,12 @@ def parse_args(args=None):
             action="store_true",
             help="Whether to push the model to the HuggingFace hub after training.",
             )
-    parser.add_argument(
-        "--pytorch_dump_folder_path",
-        required="--push_to_hub" in sys.argv,
-        type=Path,
-        help="Path to save the model. Will be created if it doesn't exist already.",
-    )
+    #parser.add_argument(
+    #    "--pytorch_dump_folder_path",
+    #    required="--push_to_hub" in sys.argv,
+    #    type=Path,
+    #    help="Path to save the model. Will be created if it doesn't exist already.",
+    #)
     parser.add_argument(
         "--model_name",
         required="--push_to_hub" in sys.argv,
@@ -103,18 +103,24 @@ def training_function(config, args):
     accelerator = Accelerator(fp16=args.fp16, cpu=args.cpu, mixed_precision=args.mixed_precision)
     
     
-    if args.output_dir is not None:
-        os.makedirs(args.output_dir, exist_ok=True)
+        
+    STORAGE_DIR = f"{args.source_dataset_name.split('/')[-1]}__2__{args.target_dataset_name.split('/')[-1]}"   
+    OUTPUT_DIR = os.path.join(args.output_dir, STORAGE_DIR)
+    
+    os.makedirs(OUTPUT_DIR, exist_ok=True)    
+    
     if args.wandb and accelerator.is_local_main_process:
         import wandb
-        wandb.init(project='--'.join(str(args.output_dir).split("/")),#[-1], 
+        wandb.init(project=STORAGE_DIR,#(str(args.output_dir).split("/")),#[-1], 
                        entity="chris1nexus")    
         wandb.config = vars(args)
-    STORAGE_DIR = f"{args.source_dataset_name}__2__{args.target_dataset_name}"            
+             
     
     # Create sample and checkpoint directories
-    os.makedirs(os.path.join(args.output_dir,"images/%s" % STORAGE_DIR), exist_ok=True)
-    os.makedirs(os.path.join(args.output_dir,"saved_models/%s" % STORAGE_DIR), exist_ok=True)
+    #os.makedirs(os.path.join(args.output_dir,"images/%s" % STORAGE_DIR), exist_ok=True)
+    #os.makedirs(os.path.join(args.output_dir,"saved_models/%s" % STORAGE_DIR), exist_ok=True)
+    os.makedirs(os.path.join(OUTPUT_DIR, "images"), exist_ok=True)
+    os.makedirs(os.path.join(OUTPUT_DIR, "saved_models"), exist_ok=True)
 
     # Losses
     criterion_GAN = torch.nn.MSELoss()
@@ -133,6 +139,7 @@ def training_function(config, args):
 
     if args.epoch != 0:
         # Load pretrained models
+        '''
         G_AB.load_state_dict(torch.load(
             os.path.join(args.output_dir,"saved_models/%s/G_AB_%d.pth" % (STORAGE_DIR, args.epoch) )  ))
         G_BA.load_state_dict(torch.load(
@@ -141,6 +148,15 @@ def training_function(config, args):
             os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (STORAGE_DIR, args.epoch))))
         D_B.load_state_dict(torch.load(
             os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (STORAGE_DIR, args.epoch))))
+        '''
+        G_AB.load_state_dict(torch.load(
+            os.path.join(OUTPUT_DIR,"saved_models/G_AB_%d.pth" % (args.epoch))  ))
+        G_BA.load_state_dict(torch.load(
+            os.path.join(OUTPUT_DIR,"saved_models/G_BA_%d.pth" % (args.epoch))  ))
+        D_A.load_state_dict(torch.load(
+            os.path.join(OUTPUT_DIR,"saved_models/D_A_%d.pth" % (args.epoch))   ))
+        D_B.load_state_dict(torch.load(
+            os.path.join(OUTPUT_DIR,"saved_models/D_B_%d.pth" % (args.epoch))   ))
     else:
         # Initialize weights
         G_AB.apply(weights_init_normal)
@@ -225,10 +241,9 @@ def training_function(config, args):
         fake_A = make_grid(fake_A, nrow=5, normalize=True)
         fake_B = make_grid(fake_B, nrow=5, normalize=True)
         # Arange images along y-axis
-        image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1)
-        save_path = os.path.join(args.output_dir,  "images/%s/%s.png" % (STORAGE_DIR, batches_done) )
-        save_image(image_grid, save_path, normalize=False)
-        return save_path
+        image_grid = torch.cat((real_A, fake_B, real_B, fake_A), 1).to('cpu')
+        save_path = os.path.join(OUTPUT_DIR,  "images/%s.png" % (batches_done) )
+        return image_grid, save_path
 
 
 
@@ -415,12 +430,14 @@ def training_function(config, args):
                            wandb.log(train_logs)
                     # If at sample interval save image
             if batches_done % args.sample_interval == 0:
-                    save_path = sample_images(args, batches_done)
+                    image_grid, save_path = sample_images(args, batches_done)
                     if args.wandb and  accelerator.is_local_main_process:
                         try:
+                            save_image(image_grid, save_path, normalize=False)
                             images = wandb.Image(str(save_path) )
                             wandb.log({'generated_examples': images }  )
-                        except:
+                        except Exception as e:
+                            print(e)
                             pass
                 #print('f')
 
@@ -431,10 +448,10 @@ def training_function(config, args):
 
         if args.checkpoint_interval != -1 and epoch % args.checkpoint_interval == 0:
             # Save model checkpoints
-            torch.save(G_AB.state_dict(), os.path.join(args.output_dir, "saved_models/%s/G_AB_%d.pth" % (STORAGE_DIR, epoch)))
-            torch.save(G_BA.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (STORAGE_DIR, epoch)))
-            torch.save(D_A.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (STORAGE_DIR, epoch)))
-            torch.save(D_B.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (STORAGE_DIR, epoch)))
+            torch.save(G_AB.state_dict(), os.path.join(OUTPUT_DIR, "saved_models/G_AB_%d.pth" % (epoch)))
+            torch.save(G_BA.state_dict(), os.path.join(OUTPUT_DIR,"saved_models/G_BA_%d.pth" % (epoch)))
+            torch.save(D_A.state_dict(), os.path.join(OUTPUT_DIR,"saved_models/D_A_%d.pth" % (epoch)))
+            torch.save(D_B.state_dict(), os.path.join(OUTPUT_DIR,"saved_models/D_B_%d.pth" % (epoch)))
 
             '''
             accelerator.wait_for_everyone()
@@ -448,27 +465,31 @@ def training_function(config, args):
             torch.save(G_AB_unwrap.state_dict(), os.path.join(args.output_dir, "saved_models/%s/G_AB_%d.pth" % (args.dataset_name, epoch)) )
             torch.save(G_BA_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/G_BA_%d.pth" % (args.dataset_name, epoch)))
             torch.save(D_A_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_A_%d.pth" % (args.dataset_name, epoch)))
-            torch.save(D_B_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch)))
-            
+            torch.save(D_B_unwrap.state_dict(),  os.path.join(args.output_dir,"saved_models/%s/D_B_%d.pth" % (args.dataset_name, epoch)))            
             '''
             
     # Optionally push to hub
     if accelerator.is_main_process and args.push_to_hub:
-        save_directory = args.pytorch_dump_folder_path
-        if not save_directory.exists():
-            save_directory.mkdir(parents=True)
 
+        d1 = args.source_dataset_name.split('/')[-1]
+        d2 = args.target_dataset_name.split('/')[-1]
+        direct = f"{d1}__2__{d2}"
+        reverse = f"{d2}__2__{d1}"  
         G_AB.push_to_hub(
-            repo_path_or_name=save_directory / args.model_name,
+            repo_path_or_name=f'{args.model_name}_{direct}',
             organization=args.organization_name,
         )
+        
+        G_BA.push_to_hub(
+            repo_path_or_name=f'{args.model_name}_{reverse}',
+            organization=args.organization_name,
+        )        
+        
 
 def main():
     args = parse_args()
     print(args)
 
-    # Make directory for saving generated images
-    os.makedirs(os.path.join(args.output_dir,"images"), exist_ok=True)
 
     training_function({}, args)
 
